@@ -112,8 +112,7 @@ const server = net.createServer((socket) => {
     });
 
     socket.on('end', () => {
-        const index = clients.indexOf(socket);
-        if (index > -1) clients.splice(index, 1);
+        if (socket.metadata.username) users.delete(socket.metadata.username);
         console.log(`Usuário ${socket.metadata.username} desconectou`);
     });
 });
