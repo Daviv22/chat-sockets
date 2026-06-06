@@ -1,82 +1,110 @@
 const net = require('node:net');
 
-const clients = [];
+/**
+ * Definindo protocolos:
+ *
+ * REGISTRAR        - Fazer registro de usuário
+ * ENTRAR           - Fazer login de usuário
+ * SAIR             - Fazer logout de usuário
+ *
+ * CRIAR_GRUPO      - Criar um grupo
+ * ENTRAR_GRUPO     - Entrar em um grupo
+ * SAIR_GRUPO       - Sair de um grupo
+ * MSG_GRUPO        - Enviar mensagem em um grupo
+ *
+ * ADD_CONT         - Adicionar contato
+ * REM_CONT         - Remover contato
+ * MSG_CONT         - Enviar mensagem a um contato
+ *
+ */
+
+const users = new Map()
+const groups = new Map()
 
 const server = net.createServer((socket) => {
     // Inicializamos propriedades únicas no objeto socket desta conexão
-    socket.metadata = { username: '', groups: [] };
+    socket.metadata = { username: null };
 
     socket.on('data', (data) => {
         try {
-            const message = JSON.parse(data.toString());
+            const { type, payload} = JSON.parse(data.toString());
 
-            if (message.type === 'REGISTER') {
-                socket.metadata.username = message.payload.name;
+            switch (type) {
 
-                if (!clients.includes(socket)) {
-                    clients.push(socket);
-                }
-                console.log(`Usuário ${socket.metadata.username} conectou`);
-            }
-
-            else if (message.type === 'JOIN_GROUP') {
-
-                const { group } = message.payload;
-
-                if (!socket.metadata.groups.includes(group)) {
-                    socket.metadata.groups.push(group);
-                }
-                console.log(`Usuário ${socket.metadata.username} entrou no grupo ${ group }`);
-            }
-
-            else if (message.type === 'SEND_MESSAGE') {
-                const { group, text } = message.payload;
-
-                // BROADCAST: Filtra pelo grupo definido no MÉTADATA do socket
-                clients.forEach(client => {
-                    if (client.metadata.groups.includes(group) && client.writable) {
-                        client.write(JSON.stringify({
-                            type: 'GROUP_MESSAGE',
-                            group: group,
-                            username: socket.metadata.username,
-                            text: text
-                        }));
+                // Cases relacionados ao usuário
+                case 'REGISTRAR':
+                    if (users.has(payload.username)) {
+                        // Envia mensagem de erro ao cliente
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário já existe!' }));
+                    } else {
+                        users.set(payload.username, { socket, contacts: [] });
+                        console.log(`Novo usuário registrado: ${payload.username}`);
                     }
-                });
-            }
+                    break;
 
-            else if (message.type === 'DIRECT_MESSAGE') {
-                const { to, text } = message.payload;
-                const from = socket.metadata.username;
+                case 'ENTRAR':
+                    if (users.has(payload.username)) {
+                        users.set(payload.username, { ...users.get(payload.username), socket });
+                        console.log(`Usuário logado: ${payload.username}`);
+                    } else {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
+                    }
+                    break;
 
-                // Encontra o destinatário pelo nome
-                const recipient = clients.find(c => c.metadata.username === to);
+                case 'SAIR':
+                    users.delete(socket.metadata.username);
+                    socket.end();
+                    break;
 
-                if (recipient && recipient.writable) {
-                    // Entrega ao destinatário
-                    recipient.write(JSON.stringify({
-                        type: 'DIRECT_MESSAGE',
-                        from: from,
-                        text: text
-                    }));
+                // Cases relacionados aos grupos
+                case 'CRIAR_GRUPO':
+                    groups.set(payload.group, new Set());
+                    groups.get(payload.group).add(socket.metadata.username);
+                    break;
 
-                    // Confirma ao remetente (para exibir na própria tela)
-                    socket.write(JSON.stringify({
-                        type: 'DIRECT_MESSAGE',
-                        from: from,
-                        to: to,
-                        text: text,
-                        self: true
-                    }));
-                } else {
-                    // Usuário não encontrado ou desconectado
-                    socket.write(JSON.stringify({
-                        type: 'ERROR',
-                        text: `Usuário "${to} não encontrado ou offline.`
-                    }));
-                }
+                case 'ENTRAR_GRUPO':
+                    if (groups.has(payload.group)) {
+                        groups.get(payload.group).add(socket.metadata.username);
+                    }
+                    break;
 
-                console.log(`DM de ${from} para ${to}: ${text}`);
+                case 'SAIR_GRUPO':
+                    const grupo = groups.get(payload.group);
+                    if (grupo) {
+                        grupo.delete(socket.metadata.username);
+                        if (grupo.size === 0) groups.delete(payload.group);
+                    }
+                    break;
+
+                case 'MSG_GRUPO':
+                    const members = groups.get(payload.group);
+                    if (members) {
+                        members.forEach(username => {
+                            const user = users.get(username);
+                            if (user && user.socket.writable) {
+                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, text: payload.text }));
+                            }
+                        });
+                    }
+                    break;
+
+                // Cases relacionados a contatos
+                case 'ADD_CONT':
+                    const u = users.get(socket.metadata.username);
+                    if (u && !u.contacts.includes(payload.contact)) u.contacts.push(payload.contact);
+                    break;
+
+                case 'REM_CONT':
+                    const uRem = users.get(socket.metadata.username);
+                    if (uRem) uRem.contacts = uRem.contacts.filter(c => c !== payload.contact);
+                    break;
+
+                case 'MSG_CONT':
+                    const target = users.get(payload.to);
+                    if (target && target.socket.writable) {
+                        target.socket.write(JSON.stringify({ type: 'MSG_CONT', from: socket.metadata.username, text: payload.text }));
+                    }
+                    break;
             }
         } catch (e) {
             console.log("Erro no processamento:", e);
