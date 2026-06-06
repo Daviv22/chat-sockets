@@ -29,11 +29,46 @@ const server = net.createServer((socket) => {
                 clients.forEach(client => {
                     if (client.metadata.group === group && client.writable) {
                         client.write(JSON.stringify({
+                            type: 'GROUP_MESSAGE',
                             username: socket.metadata.username,
                             text: text
                         }));
                     }
                 });
+            }
+
+            else if (message.type === 'DIRECT_MESSAGE') {
+                const { to, text } = message.payload;
+                const from = socket.metadata.username;
+
+                // Encontra o destinatário pelo nome
+                const recipient = clients.find(c => c.metadata.username === to);
+
+                if (recipient && recipient.writable) {
+                    // Entrega ao destinatário
+                    recipient.write(JSON.stringify({
+                        type: 'DIRECT_MESSAGE',
+                        from: from,
+                        text: text
+                    }));
+
+                    // Confirma ao remetente (para exibir na própria tela)
+                    socket.write(JSON.stringify({
+                        type: 'DIRECT_MESSAGE',
+                        from: from,
+                        to: to,
+                        text: text,
+                        self: true
+                    }));
+                } else {
+                    // Usuário não encontrado ou desconectado
+                    socket.write(JSON.stringify({
+                        type: 'ERROR',
+                        text: `Usuário "${to} não encontrado ou offline.`
+                    }));
+                }
+
+                console.log(`DM de ${from} para ${to}: ${text}`);
             }
         } catch (e) {
             console.log("Erro no processamento:", e);
@@ -43,6 +78,7 @@ const server = net.createServer((socket) => {
     socket.on('end', () => {
         const index = clients.indexOf(socket);
         if (index > -1) clients.splice(index, 1);
+        console.log(`Usuário ${socket.metadata.username} desconectou`);
     });
 });
 
