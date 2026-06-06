@@ -38,6 +38,7 @@ const server = net.createServer((socket) => {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário já existe!' }));
                     } else {
                         users.set(payload.username, { socket, contacts: [] });
+                        socket.metadata.username = payload.username;
                         console.log(`Novo usuário registrado: ${payload.username}`);
                     }
                     break;
@@ -45,6 +46,7 @@ const server = net.createServer((socket) => {
                 case 'ENTRAR':
                     if (users.has(payload.username)) {
                         users.set(payload.username, { ...users.get(payload.username), socket });
+                        socket.metadata.username = payload.username;
                         console.log(`Usuário logado: ${payload.username}`);
                     } else {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
