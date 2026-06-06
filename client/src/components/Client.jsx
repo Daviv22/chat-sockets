@@ -1,239 +1,590 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from "react";
 
-const Chat = () => {
-    const [socket, setSocket] = useState(null);
+// ─── WebSocket Hook ────────────────────────────────────────────────────────────
+function useChat() {
+    const [connected, setConnected] = useState(false);
+    const [user, setUser] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [registered, setRegistered] = useState(false);
-    const [username, setUsername] = useState('');
-    const [usernameInput, setUsernameInput] = useState('');
-    const [usernameError, setUsernameError] = useState('');
-
-    // Grupos
-    const [groups, setGroups] = useState([]);        // grupos que o usuário entrou
-    const [activeGroup, setActiveGroup] = useState(null);
-    const [groupInput, setGroupInput] = useState(''); // input para entrar num novo grupo
-    const [groupError, setGroupError] = useState('');
-    const [messageInput, setMessageInput] = useState('');
-
-    // DM
-    const [dmTarget, setDmTarget] = useState('');
-    const [dmInput, setDmInput] = useState('');
-    const [dmError, setDmError] = useState('');
-    const [activeTab, setActiveTab] = useState('groups'); // 'groups' | 'dm'
+    const [contacts, setContacts] = useState([]);
+    const [groups, setGroups] = useState([]);
+    const wsRef = useRef(null);
 
     useEffect(() => {
-        const ws = new WebSocket('ws://localhost:8080');
-        ws.onopen = () => console.log('Conectado ao bridge');
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setMessages((prev) => [...prev, data]);
+        const ws = new WebSocket("ws://localhost:8080");
+        wsRef.current = ws;
+
+        ws.onopen = () => setConnected(true);
+        ws.onclose = () => { setConnected(false); setUser(null); };
+
+        ws.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === "ERROR") {
+                    setMessages(prev => [...prev, { type: "error", text: msg.text, id: Date.now() }]);
+                } else if (msg.type === "MSG_CONT") {
+                    setMessages(prev => [...prev, {
+                        type: "msg", from: msg.from, text: msg.text,
+                        channel: msg.from, channelType: "contact", id: Date.now()
+                    }]);
+                } else if (msg.type === "MSG_GRUPO") {
+                    setMessages(prev => [...prev, {
+                        type: "msg", from: msg.from, text: msg.text,
+                        channel: msg.group || "grupo", channelType: "group", id: Date.now()
+                    }]);
+                }
+            } catch {}
         };
-        setSocket(ws);
+
         return () => ws.close();
     }, []);
 
-    // --- Registro ---
-    const handleRegister = () => {
-        const name = usernameInput.trim();
-        if (!name) {
-            setUsernameError('Digite um nome para continuar.');
-            return;
+    const send = useCallback((obj) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify(obj));
         }
-        socket.send(JSON.stringify({ type: 'REGISTER', payload: { name } }));
-        setUsername(name);
-        setRegistered(true);
+    }, []);
+
+    const register = (username) => {
+        send({ type: "REGISTRAR", payload: { username } });
+        setUser(username);
     };
 
-    // --- Grupos ---
-    const handleJoinGroup = () => {
-        const group = groupInput.trim();
-        if (!group) {
-            setGroupError('Digite o nome do grupo.');
-            return;
-        }
-        if (groups.includes(group)) {
-            setGroupError(`Você já está no grupo "${group}".`);
-            return;
-        }
-        socket.send(JSON.stringify({ type: 'JOIN_GROUP', payload: { group } }));
-        setGroups(prev => [...prev, group]);
-        setActiveGroup(group);
-        setGroupInput('');
-        setGroupError('');
-        setActiveTab('groups');
+    const login = (username) => {
+        send({ type: "ENTRAR", payload: { username } });
+        setUser(username);
     };
 
-    const sendGroupMessage = () => {
-        if (!messageInput.trim() || !activeGroup) return;
-        socket.send(JSON.stringify({
-            type: 'SEND_MESSAGE',
-            payload: { group: activeGroup, text: messageInput }
-        }));
-        setMessageInput('');
+    const logout = () => {
+        send({ type: "SAIR", payload: {} });
+        setUser(null);
+        setMessages([]);
+        setContacts([]);
+        setGroups([]);
     };
 
-    // --- DM ---
-    const sendDM = () => {
-        const target = dmTarget.trim();
-        if (!dmInput.trim() || !target) return;
-        if (target === username) {
-            setDmError('Você não pode enviar uma mensagem direta para si mesmo.');
-            return;
-        }
-        setDmError('');
-        socket.send(JSON.stringify({
-            type: 'DIRECT_MESSAGE',
-            payload: { to: target, text: dmInput }
-        }));
-        setDmInput('');
+    const addContact = (contact) => {
+        send({ type: "ADD_CONT", payload: { contact } });
+        if (!contacts.includes(contact)) setContacts(prev => [...prev, contact]);
     };
 
-    const handleKeyDown = (e, action) => {
-        if (e.key === 'Enter') action();
+    const removeContact = (contact) => {
+        send({ type: "REM_CONT", payload: { contact } });
+        setContacts(prev => prev.filter(c => c !== contact));
     };
 
-    // --- Filtros de mensagem ---
-    const groupMessages = (group) => messages.filter(
-        m => m.type === 'GROUP_MESSAGE' && m.group === group
-    );
-    const dmMessages = messages.filter(
-        m => m.type === 'DIRECT_MESSAGE' &&
-            (m.from === dmTarget.trim() || (m.self && m.to === dmTarget.trim()))
-    );
-    const dmErrors = messages.filter(m => m.type === 'ERROR');
+    const msgContact = (to, text) => {
+        send({ type: "MSG_CONT", payload: { to, text } });
+        setMessages(prev => [...prev, {
+            type: "msg", from: user, text, channel: to,
+            channelType: "contact", id: Date.now()
+        }]);
+    };
 
-    // --- Tela de registro ---
-    if (!registered) {
-        return (
-            <div>
-                <h3>Entrar no Chat</h3>
+    const createGroup = (group) => {
+        send({ type: "CRIAR_GRUPO", payload: { group } });
+        if (!groups.includes(group)) setGroups(prev => [...prev, group]);
+    };
+
+    const joinGroup = (group) => {
+        send({ type: "ENTRAR_GRUPO", payload: { group } });
+        if (!groups.includes(group)) setGroups(prev => [...prev, group]);
+    };
+
+    const leaveGroup = (group) => {
+        send({ type: "SAIR_GRUPO", payload: { group } });
+        setGroups(prev => prev.filter(g => g !== group));
+    };
+
+    const msgGroup = (group, text) => {
+        send({ type: "MSG_GRUPO", payload: { group, text } });
+        setMessages(prev => [...prev, {
+            type: "msg", from: user, text, channel: group,
+            channelType: "group", id: Date.now()
+        }]);
+    };
+
+    return {
+        connected, user, messages, contacts, groups,
+        register, login, logout,
+        addContact, removeContact, msgContact,
+        createGroup, joinGroup, leaveGroup, msgGroup,
+    };
+}
+
+// ─── Auth Screen ───────────────────────────────────────────────────────────────
+function AuthScreen({ onRegister, onLogin, connected }) {
+    const [mode, setMode] = useState("login");
+    const [username, setUsername] = useState("");
+
+    const handle = () => {
+        if (!username.trim()) return;
+        mode === "login" ? onLogin(username.trim()) : onRegister(username.trim());
+    };
+
+    return (
+        <div style={styles.authWrap}>
+            <div style={styles.authCard}>
+                <div style={styles.authLogo}>
+                    <span style={styles.logoIcon}>◈</span>
+                    <span style={styles.logoText}>nexus</span>
+                </div>
+                <p style={styles.authSub}>chat minimalista · TCP/WS</p>
+
+                <div style={styles.connDot(connected)} />
+
+                <div style={styles.tabRow}>
+                    {["login", "registrar"].map(m => (
+                        <button key={m} style={styles.tab(mode === m)} onClick={() => setMode(m)}>
+                            {m}
+                        </button>
+                    ))}
+                </div>
+
                 <input
-                    placeholder="Seu nome"
-                    value={usernameInput}
-                    onChange={(e) => { setUsernameInput(e.target.value); setUsernameError(''); }}
-                    onKeyDown={(e) => handleKeyDown(e, handleRegister)}
+                    style={styles.authInput}
+                    placeholder="seu username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handle()}
+                    autoFocus
                 />
-                <button onClick={handleRegister}>Entrar</button>
-                {usernameError && <p style={{ color: 'red' }}>{usernameError}</p>}
+
+                <button style={styles.authBtn} onClick={handle} disabled={!connected}>
+                    {mode === "login" ? "entrar →" : "criar conta →"}
+                </button>
+
+                {!connected && (
+                    <p style={styles.warnText}>⚠ WebSocket desconectado (porta 8080)</p>
+                )}
             </div>
+        </div>
+    );
+}
+
+// ─── Message Bubble ────────────────────────────────────────────────────────────
+function Bubble({ msg, me }) {
+    const isMine = msg.from === me;
+    if (msg.type === "error") {
+        return <div style={styles.errBubble}>{msg.text}</div>;
+    }
+    return (
+        <div style={styles.bubbleRow(isMine)}>
+            {!isMine && <span style={styles.bubbleName}>{msg.from}</span>}
+            <div style={styles.bubble(isMine)}>{msg.text}</div>
+        </div>
+    );
+}
+
+// ─── Modal ─────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+    return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+            <div style={styles.modalCard} onClick={e => e.stopPropagation()}>
+                <div style={styles.modalHead}>
+                    <span style={styles.modalTitle}>{title}</span>
+                    <button style={styles.modalClose} onClick={onClose}>✕</button>
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+// ─── Main App ──────────────────────────────────────────────────────────────────
+export default function App() {
+    const chat = useChat();
+    const [activeChannel, setActiveChannel] = useState(null); // { type, name }
+    const [input, setInput] = useState("");
+    const [modal, setModal] = useState(null); // 'addContact'|'addGroup'|'joinGroup'
+    const [modalInput, setModalInput] = useState("");
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [chat.messages]);
+
+    if (!chat.user) {
+        return (
+            <AuthScreen
+                onRegister={chat.register}
+                onLogin={chat.login}
+                connected={chat.connected}
+            />
         );
     }
 
+    const channelMessages = activeChannel
+        ? chat.messages.filter(
+            m => m.channel === activeChannel.name && m.channelType === activeChannel.type
+        )
+        : [];
+
+    const sendMessage = () => {
+        if (!input.trim() || !activeChannel) return;
+        if (activeChannel.type === "contact") chat.msgContact(activeChannel.name, input.trim());
+        else chat.msgGroup(activeChannel.name, input.trim());
+        setInput("");
+    };
+
+    const handleModal = () => {
+        if (!modalInput.trim()) return;
+        if (modal === "addContact") chat.addContact(modalInput.trim());
+        if (modal === "addGroup") chat.createGroup(modalInput.trim());
+        if (modal === "joinGroup") chat.joinGroup(modalInput.trim());
+        setModal(null);
+        setModalInput("");
+    };
+
     return (
-        <div>
-            <h3>Logado como: {username}</h3>
+        <div style={styles.appWrap}>
+            {/* ── Sidebar ── */}
+            <aside style={styles.sidebar}>
+                <div style={styles.sideTop}>
+                    <span style={styles.logoIcon2}>◈</span>
+                    <span style={styles.sideUser}>{chat.user}</span>
+                </div>
 
-            {/* Abas principais */}
-            <div>
-                <button
-                    onClick={() => setActiveTab('groups')}
-                    style={{ fontWeight: activeTab === 'groups' ? 'bold' : 'normal' }}
-                >
-                    Grupos
-                </button>
-                <button
-                    onClick={() => setActiveTab('dm')}
-                    style={{ fontWeight: activeTab === 'dm' ? 'bold' : 'normal' }}
-                >
-                    Mensagem Direta
-                </button>
-            </div>
-
-            {/* Aba de Grupos */}
-            {activeTab === 'groups' && (
-                <div>
-                    {/* Entrar em novo grupo */}
-                    <div style={{ marginTop: 8 }}>
-                        <input
-                            placeholder="Nome do grupo..."
-                            value={groupInput}
-                            onChange={(e) => { setGroupInput(e.target.value); setGroupError(''); }}
-                            onKeyDown={(e) => handleKeyDown(e, handleJoinGroup)}
-                        />
-                        <button onClick={handleJoinGroup}>Entrar no grupo</button>
-                        {groupError && <p style={{ color: 'red' }}>{groupError}</p>}
+                <section style={styles.sideSection}>
+                    <div style={styles.secHeader}>
+                        <span>Contatos</span>
+                        <button style={styles.addBtn} onClick={() => setModal("addContact")}>+</button>
                     </div>
-
-                    {groups.length === 0 && (
-                        <p style={{ color: '#999' }}>Você ainda não entrou em nenhum grupo.</p>
+                    {chat.contacts.length === 0 && (
+                        <p style={styles.emptyHint}>nenhum contato</p>
                     )}
+                    {chat.contacts.map(c => (
+                        <div
+                            key={c}
+                            style={styles.sideItem(activeChannel?.name === c && activeChannel?.type === "contact")}
+                            onClick={() => setActiveChannel({ type: "contact", name: c })}
+                        >
+                            <span style={styles.avatar}>{c[0].toUpperCase()}</span>
+                            <span style={styles.itemLabel}>{c}</span>
+                            <button
+                                style={styles.removeBtn}
+                                onClick={e => { e.stopPropagation(); chat.removeContact(c); }}
+                            >✕</button>
+                        </div>
+                    ))}
+                </section>
 
-                    {/* Lista de grupos que o usuário participa */}
-                    {groups.length > 0 && (
-                        <div style={{ marginTop: 8 }}>
-                            <div>
-                                {groups.map(g => (
-                                    <button
-                                        key={g}
-                                        onClick={() => setActiveGroup(g)}
-                                        style={{ fontWeight: activeGroup === g ? 'bold' : 'normal', marginRight: 4 }}
-                                    >
-                                        #{g}
-                                    </button>
-                                ))}
-                            </div>
+                <section style={styles.sideSection}>
+                    <div style={styles.secHeader}>
+                        <span>Grupos</span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                            <button style={styles.addBtn} onClick={() => setModal("addGroup")} title="Criar grupo">+</button>
+                            <button style={styles.addBtn} onClick={() => setModal("joinGroup")} title="Entrar em grupo">→</button>
+                        </div>
+                    </div>
+                    {chat.groups.length === 0 && (
+                        <p style={styles.emptyHint}>nenhum grupo</p>
+                    )}
+                    {chat.groups.map(g => (
+                        <div
+                            key={g}
+                            style={styles.sideItem(activeChannel?.name === g && activeChannel?.type === "group")}
+                            onClick={() => setActiveChannel({ type: "group", name: g })}
+                        >
+                            <span style={styles.avatarGroup}>#</span>
+                            <span style={styles.itemLabel}>{g}</span>
+                            <button
+                                style={styles.removeBtn}
+                                onClick={e => { e.stopPropagation(); chat.leaveGroup(g); }}
+                            >✕</button>
+                        </div>
+                    ))}
+                </section>
 
-                            {/* Mensagens do grupo ativo */}
-                            {activeGroup && (
-                                <div>
-                                    <div style={{ minHeight: 100, border: '1px solid #ccc', padding: 8, marginTop: 8 }}>
-                                        {groupMessages(activeGroup).length === 0
-                                            ? <p style={{ color: '#999' }}>Nenhuma mensagem ainda.</p>
-                                            : groupMessages(activeGroup).map((m, i) => (
-                                                <p key={i}><strong>{m.username}</strong>: {m.text}</p>
-                                            ))
-                                        }
-                                    </div>
-                                    <input
-                                        value={messageInput}
-                                        placeholder={`Mensagem para #${activeGroup}...`}
-                                        onChange={(e) => setMessageInput(e.target.value)}
-                                        onKeyDown={(e) => handleKeyDown(e, sendGroupMessage)}
-                                    />
-                                    <button onClick={sendGroupMessage}>Enviar</button>
+                <button style={styles.logoutBtn} onClick={chat.logout}>sair</button>
+            </aside>
+
+            {/* ── Chat Area ── */}
+            <main style={styles.chatArea}>
+                {activeChannel ? (
+                    <>
+                        <div style={styles.chatHeader}>
+              <span style={styles.chatHeaderIcon}>
+                {activeChannel.type === "group" ? "#" : activeChannel.name[0].toUpperCase()}
+              </span>
+                            <span style={styles.chatHeaderName}>{activeChannel.name}</span>
+                            <span style={styles.chatHeaderType}>
+                {activeChannel.type === "group" ? "grupo" : "contato"}
+              </span>
+                        </div>
+
+                        <div style={styles.messages}>
+                            {channelMessages.length === 0 && (
+                                <div style={styles.emptyChat}>
+                                    <span style={styles.emptyChatIcon}>◎</span>
+                                    <p>nenhuma mensagem ainda</p>
                                 </div>
                             )}
+                            {channelMessages.map(m => (
+                                <Bubble key={m.id} msg={m} me={chat.user} />
+                            ))}
+                            <div ref={messagesEndRef} />
                         </div>
-                    )}
-                </div>
-            )}
 
-            {/* Aba de DM */}
-            {activeTab === 'dm' && (
-                <div>
-                    <div style={{ marginTop: 8 }}>
-                        <input
-                            placeholder="Nome do usuário..."
-                            value={dmTarget}
-                            onChange={(e) => { setDmTarget(e.target.value); setDmError(''); }}
-                        />
+                        <div style={styles.inputRow}>
+                            <input
+                                style={styles.msgInput}
+                                placeholder={`mensagem para ${activeChannel.name}...`}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && sendMessage()}
+                            />
+                            <button style={styles.sendBtn} onClick={sendMessage}>↑</button>
+                        </div>
+                    </>
+                ) : (
+                    <div style={styles.noChatSelected}>
+                        <span style={styles.ncIcon}>◈</span>
+                        <p style={styles.ncText}>selecione um contato ou grupo</p>
+                        <p style={styles.ncSub}>para começar a conversar</p>
                     </div>
-                    {dmError && <p style={{ color: 'red' }}>{dmError}</p>}
-                    {dmErrors.map((m, i) => <p key={i} style={{ color: 'red' }}>{m.text}</p>)}
-                    <div style={{ minHeight: 100, border: '1px solid #ccc', padding: 8, marginTop: 8 }}>
-                        {!dmTarget.trim()
-                            ? <p style={{ color: '#999' }}>Digite o nome de um usuário para iniciar.</p>
-                            : dmMessages.length === 0
-                                ? <p style={{ color: '#999' }}>Nenhuma mensagem ainda.</p>
-                                : dmMessages.map((m, i) => (
-                                    <p key={i}>
-                                        <strong>{m.self ? 'Você' : m.from}</strong>: {m.text}
-                                    </p>
-                                ))
-                        }
-                    </div>
+                )}
+            </main>
+
+            {/* ── Modal ── */}
+            {modal && (
+                <Modal
+                    title={
+                        modal === "addContact" ? "Adicionar contato"
+                            : modal === "addGroup" ? "Criar grupo"
+                                : "Entrar em grupo"
+                    }
+                    onClose={() => { setModal(null); setModalInput(""); }}
+                >
                     <input
-                        value={dmInput}
-                        placeholder={dmTarget.trim() ? `Mensagem para ${dmTarget.trim()}...` : 'Defina o destinatário acima'}
-                        onChange={(e) => setDmInput(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, sendDM)}
-                        disabled={!dmTarget.trim()}
+                        style={styles.modalInput}
+                        placeholder={modal === "addContact" ? "username do contato" : "nome do grupo"}
+                        value={modalInput}
+                        onChange={e => setModalInput(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleModal()}
+                        autoFocus
                     />
-                    <button onClick={sendDM} disabled={!dmTarget.trim()}>Enviar</button>
-                </div>
+                    <button style={styles.modalBtn} onClick={handleModal}>
+                        {modal === "addContact" ? "adicionar"
+                            : modal === "addGroup" ? "criar"
+                                : "entrar"}
+                    </button>
+                </Modal>
             )}
         </div>
     );
+}
+
+// ─── Styles ────────────────────────────────────────────────────────────────────
+const C = {
+    bg: "#0d0d0f",
+    surface: "#141418",
+    border: "#222228",
+    accent: "#c8ff00",
+    accentDim: "#8aad00",
+    text: "#e8e8e8",
+    muted: "#555",
+    danger: "#ff4455",
+    groupAvatar: "#1a1a2e",
 };
 
-export default Chat;
+const styles = {
+    authWrap: {
+        display: "flex", alignItems: "center", justifyContent: "center",
+        minHeight: "100vh", background: C.bg,
+        fontFamily: "'Courier New', monospace",
+    },
+    authCard: {
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderRadius: 2, padding: "48px 40px", minWidth: 340,
+        display: "flex", flexDirection: "column", gap: 16,
+    },
+    authLogo: { display: "flex", alignItems: "baseline", gap: 10 },
+    logoIcon: { fontSize: 28, color: C.accent },
+    logoText: { fontSize: 28, color: C.text, fontWeight: 700, letterSpacing: 4 },
+    authSub: { color: C.muted, fontSize: 11, margin: 0, letterSpacing: 2 },
+    connDot: (ok) => ({
+        width: 8, height: 8, borderRadius: "50%",
+        background: ok ? C.accent : C.danger,
+        boxShadow: ok ? `0 0 8px ${C.accent}` : `0 0 8px ${C.danger}`,
+    }),
+    tabRow: { display: "flex", gap: 0, borderBottom: `1px solid ${C.border}` },
+    tab: (active) => ({
+        flex: 1, padding: "8px 0", background: "none",
+        border: "none", borderBottom: active ? `2px solid ${C.accent}` : "2px solid transparent",
+        color: active ? C.accent : C.muted,
+        cursor: "pointer", fontFamily: "'Courier New', monospace",
+        fontSize: 12, letterSpacing: 1, marginBottom: -1,
+    }),
+    authInput: {
+        background: C.bg, border: `1px solid ${C.border}`,
+        borderRadius: 2, padding: "12px 14px", color: C.text,
+        fontFamily: "'Courier New', monospace", fontSize: 14,
+        outline: "none", width: "100%", boxSizing: "border-box",
+    },
+    authBtn: {
+        background: C.accent, color: C.bg, border: "none",
+        padding: "12px", cursor: "pointer", fontWeight: 700,
+        fontFamily: "'Courier New', monospace", fontSize: 13,
+        letterSpacing: 1, borderRadius: 2,
+    },
+    warnText: { color: C.danger, fontSize: 11, margin: 0, textAlign: "center" },
+
+    appWrap: {
+        display: "flex", height: "100vh", background: C.bg,
+        fontFamily: "'Courier New', monospace", overflow: "hidden",
+    },
+    sidebar: {
+        width: 240, background: C.surface, borderRight: `1px solid ${C.border}`,
+        display: "flex", flexDirection: "column", overflow: "hidden",
+    },
+    sideTop: {
+        padding: "20px 16px", borderBottom: `1px solid ${C.border}`,
+        display: "flex", alignItems: "center", gap: 10,
+    },
+    logoIcon2: { color: C.accent, fontSize: 18 },
+    sideUser: { color: C.text, fontSize: 13, fontWeight: 700, letterSpacing: 1 },
+    sideSection: {
+        padding: "12px 0", borderBottom: `1px solid ${C.border}`,
+        flex: "0 0 auto",
+    },
+    secHeader: {
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "0 16px 8px", color: C.muted, fontSize: 10, letterSpacing: 2,
+    },
+    addBtn: {
+        background: "none", border: `1px solid ${C.border}`,
+        color: C.accent, cursor: "pointer", width: 22, height: 22,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 14, borderRadius: 2, padding: 0,
+    },
+    emptyHint: { color: C.muted, fontSize: 11, margin: "0 16px", letterSpacing: 1 },
+    sideItem: (active) => ({
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 16px", cursor: "pointer",
+        background: active ? `${C.accent}18` : "transparent",
+        borderLeft: active ? `2px solid ${C.accent}` : "2px solid transparent",
+        transition: "all 0.15s",
+    }),
+    avatar: {
+        width: 24, height: 24, borderRadius: "50%",
+        background: C.accentDim, color: C.bg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 11, fontWeight: 700, flexShrink: 0,
+    },
+    avatarGroup: {
+        width: 24, height: 24, borderRadius: 2,
+        background: "#1a2a00", color: C.accent,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 13, fontWeight: 700, flexShrink: 0,
+    },
+    itemLabel: { color: C.text, fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis" },
+    removeBtn: {
+        background: "none", border: "none", color: C.muted,
+        cursor: "pointer", fontSize: 10, padding: 2, opacity: 0.5,
+        "&:hover": { opacity: 1, color: C.danger },
+    },
+    logoutBtn: {
+        margin: "auto 16px 16px",
+        background: "none", border: `1px solid ${C.border}`,
+        color: C.muted, padding: "8px", cursor: "pointer",
+        fontFamily: "'Courier New', monospace", fontSize: 11,
+        letterSpacing: 1, borderRadius: 2,
+    },
+    chatArea: {
+        flex: 1, display: "flex", flexDirection: "column", overflow: "hidden",
+    },
+    chatHeader: {
+        padding: "16px 24px", borderBottom: `1px solid ${C.border}`,
+        display: "flex", alignItems: "center", gap: 12, background: C.surface,
+    },
+    chatHeaderIcon: {
+        width: 32, height: 32, background: C.accentDim,
+        borderRadius: "50%", display: "flex", alignItems: "center",
+        justifyContent: "center", color: C.bg, fontWeight: 700, fontSize: 13,
+    },
+    chatHeaderName: { color: C.text, fontSize: 15, fontWeight: 700 },
+    chatHeaderType: {
+        color: C.muted, fontSize: 10, letterSpacing: 2, marginLeft: "auto",
+    },
+    messages: {
+        flex: 1, overflowY: "auto", padding: "20px 24px",
+        display: "flex", flexDirection: "column", gap: 8,
+    },
+    emptyChat: {
+        flex: 1, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        color: C.muted, gap: 8, marginTop: 60,
+    },
+    emptyChatIcon: { fontSize: 32, color: `${C.muted}55` },
+    bubbleRow: (mine) => ({
+        display: "flex", flexDirection: "column",
+        alignItems: mine ? "flex-end" : "flex-start",
+        gap: 2,
+    }),
+    bubbleName: { color: C.muted, fontSize: 10, paddingLeft: 12, letterSpacing: 1 },
+    bubble: (mine) => ({
+        maxWidth: "65%", padding: "10px 14px",
+        background: mine ? C.accent : C.surface,
+        color: mine ? C.bg : C.text,
+        border: mine ? "none" : `1px solid ${C.border}`,
+        borderRadius: mine ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
+        fontSize: 13, lineHeight: 1.5,
+    }),
+    errBubble: {
+        background: "#1a0008", border: `1px solid ${C.danger}55`,
+        color: C.danger, padding: "8px 14px", borderRadius: 4,
+        fontSize: 12, alignSelf: "center",
+    },
+    inputRow: {
+        padding: "16px 24px", borderTop: `1px solid ${C.border}`,
+        display: "flex", gap: 8, background: C.surface,
+    },
+    msgInput: {
+        flex: 1, background: C.bg, border: `1px solid ${C.border}`,
+        borderRadius: 2, padding: "12px 16px", color: C.text,
+        fontFamily: "'Courier New', monospace", fontSize: 13,
+        outline: "none",
+    },
+    sendBtn: {
+        background: C.accent, color: C.bg, border: "none",
+        width: 44, borderRadius: 2, cursor: "pointer",
+        fontSize: 18, fontWeight: 700,
+    },
+    noChatSelected: {
+        flex: 1, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 8,
+    },
+    ncIcon: { fontSize: 48, color: `${C.accent}33` },
+    ncText: { color: C.muted, fontSize: 14, letterSpacing: 2, margin: 0 },
+    ncSub: { color: `${C.muted}77`, fontSize: 11, letterSpacing: 1, margin: 0 },
+
+    modalOverlay: {
+        position: "fixed", inset: 0, background: "#000000aa",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+    },
+    modalCard: {
+        background: C.surface, border: `1px solid ${C.border}`,
+        borderRadius: 4, padding: "24px", minWidth: 300,
+        display: "flex", flexDirection: "column", gap: 14,
+    },
+    modalHead: {
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+    },
+    modalTitle: { color: C.text, fontWeight: 700, fontSize: 14, letterSpacing: 1 },
+    modalClose: {
+        background: "none", border: "none", color: C.muted,
+        cursor: "pointer", fontSize: 14,
+    },
+    modalInput: {
+        background: C.bg, border: `1px solid ${C.border}`,
+        borderRadius: 2, padding: "10px 14px", color: C.text,
+        fontFamily: "'Courier New', monospace", fontSize: 13,
+        outline: "none",
+    },
+    modalBtn: {
+        background: C.accent, color: C.bg, border: "none",
+        padding: "10px", cursor: "pointer", fontWeight: 700,
+        fontFamily: "'Courier New', monospace", fontSize: 13,
+        letterSpacing: 1, borderRadius: 2,
+    },
+};
