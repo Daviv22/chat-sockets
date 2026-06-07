@@ -27,7 +27,7 @@ export default function Chat() {
     useEffect(() => {
         if (currentGroup && ws.current && !loadedHistory.current.has(currentGroup)) {
             ws.current.send(JSON.stringify({
-                type: 'CARREGAR_MENSAGENS',
+                type: 'CARREGAR_MSG_GRUPOS',
                 payload: { group: currentGroup }
             }));
             loadedHistory.current.add(currentGroup);

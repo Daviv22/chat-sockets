@@ -3,18 +3,22 @@ const net = require('node:net');
 /**
  * Definindo protocolos:
  *
- * REGISTRAR        - Fazer registro de usuário
- * ENTRAR           - Fazer login de usuário
- * SAIR             - Fazer logout de usuário
+ * REGISTRAR            - Fazer registro de usuário
+ * ENTRAR               - Fazer login de usuário
+ * SAIR                 - Fazer logout de usuário
  *
- * CRIAR_GRUPO      - Criar um grupo
- * ENTRAR_GRUPO     - Entrar em um grupo
- * SAIR_GRUPO       - Sair de um grupo
- * MSG_GRUPO        - Enviar mensagem em um grupo
+ * CRIAR_GRUPO          - Criar um grupo
+ * ENTRAR_GRUPO         - Entrar em um grupo
+ * SAIR_GRUPO           - Sair de um grupo
+ * MSG_GRUPO            - Enviar mensagem em um grupo
+ * LISTAR_GRUPOS        - Lista todos os grupos do usuário
+ * CARREGAR_MSG_GRUPOS  - Carrega mensagens dos grupos
  *
- * ADD_CONT         - Adicionar contato
- * REM_CONT         - Remover contato
- * MSG_CONT         - Enviar mensagem a um contato
+ * ADD_CONT             - Adicionar contato
+ * REM_CONT             - Remover contato
+ * MSG_CONT             - Enviar mensagem a um contato
+ * LISTAR_CONT          - Lista todos os contatos do usuário
+ * CARREGAR_MSG_CONT    - Carrega mensagens dos contatos
  *
  */
 
@@ -134,7 +138,7 @@ const server = net.createServer((socket) => {
                     socket.write(JSON.stringify({ type: 'SYNC_GROUPS', groups: meusGrupos }));
                     break;
 
-                case 'CARREGAR_MENSAGENS':
+                case 'CARREGAR_MSG_GRUPOS':
                     const historico = mensagensDoGrupo[payload.group] || [];
                     socket.write(JSON.stringify({ type: 'HISTORICO_MENSAGENS', group: payload.group, messages: historico }));
                     break;
