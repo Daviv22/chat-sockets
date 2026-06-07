@@ -1,7 +1,8 @@
-import Chat from './components/Client.jsx';
+
+import Client from "./components/Client.jsx";
 
 export default function App() {
     return (
-        <Chat />
+        <Client />
     )
 }
