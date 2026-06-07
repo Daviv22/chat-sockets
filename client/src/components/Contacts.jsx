@@ -2,9 +2,8 @@ import {useContext, useState} from "react";
 import {AuthContext} from "./AuthContext.jsx";
 
 export default function Contacts() {
-    const { ws, contacts, setCurrentContacts } = useContext(AuthContext)
+    const { ws, contacts, setCurrentContact, setIsGroup } = useContext(AuthContext)
     const [newContact, setNewContact] = useState('');
-
 
     const handleAdd = (type) => {
         if (!newContact) return;
@@ -23,7 +22,7 @@ export default function Contacts() {
                     className="border p-1 rounded-lg"
                     value={newContact}
                     onChange={(e) => setNewContact(e.target.value)}
-                    placeholder="Nome do grupo"
+                    placeholder="Nome do contato"
                 />
                 <button onClick={() => handleAdd('ADD_CONT')} className="bg-blue-500 text-white p-1 rounded-lg">+</button>
                 <button  className="bg-red-500 text-white p-1 rounded-lg">Remover</button>
@@ -32,7 +31,7 @@ export default function Contacts() {
                 {contacts.map(c => (
                     <li
                         key={c}
-                        onClick={() => setCurrentContacts(c)}
+                        onClick={() => {setCurrentContact(c); setIsGroup(false)}}
                         className="cursor-pointer hover:bg-gray-300 p-1"
                     >
                         {c}

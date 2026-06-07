@@ -2,7 +2,7 @@ import { useContext, useState } from 'react';
 import { AuthContext } from './AuthContext';
 
 export default function Groups() {
-    const { ws, groups, setCurrentGroup } = useContext(AuthContext);
+    const { ws, groups, setCurrentGroup, setIsGroup } = useContext(AuthContext);
     const [newGroup, setNewGroup] = useState('');
 
     const handleCreateOrJoin = (type) => {
@@ -32,7 +32,7 @@ export default function Groups() {
                 {groups.map(g => (
                     <li
                         key={g}
-                        onClick={() => setCurrentGroup(g)}
+                        onClick={() => {setCurrentGroup(g); setIsGroup(true)}}
                         className="cursor-pointer hover:bg-gray-300 p-1"
                     >
                         {g}

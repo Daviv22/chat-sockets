@@ -139,24 +139,25 @@ const server = net.createServer((socket) => {
                     const userA = users.get(socket.metadata.username);
                     const userB = users.get(payload.contact);
 
-                    // 1. Validar existência de usuário
+                    // Validar existência de usuário
                     if (!userB) {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não existe!' }));
                         return;
                     }
 
+                    // Impede usuário adicionar a si mesmo
                     if (userA === userB) {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Você não pode adicionar a si mesmo como um contato!' }));
                         return
                     }
 
-                    // 2. Adicionar B em A
+                    // Adicionar B em A
                     if (!userA.contacts.includes(payload.contact)) {
                         userA.contacts.push(payload.contact);
                         socket.write(JSON.stringify({ type: 'UPDATE_CONTACTS', contacts: userA.contacts }));
                     }
 
-                    // 3. Adicionar A em B
+                    // Adicionar A em B
                     if (!userB.contacts.includes(socket.metadata.username)) {
                         userB.contacts.push(socket.metadata.username);
 
@@ -176,9 +177,26 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'MSG_CONT':
-                    const target = users.get(payload.to);
-                    if (target && target.socket.writable) {
-                        target.socket.write(JSON.stringify({ type: 'MSG_CONT', from: socket.metadata.username, text: payload.text }));
+                    const destino = users.get(payload.to);
+                    const origem = users.get(socket.metadata.username);
+
+                    // Envia para o destinatário
+                    if (destino && destino.socket && destino.socket.writable) {
+                        destino.socket.write(JSON.stringify({
+                            type: 'MSG_CONT',
+                            from: socket.metadata.username,
+                            text: payload.text
+                        }));
+                    }
+
+                    // Envia de volta para o remetente (confirmação)
+                    if (origem && origem.socket && origem.socket.writable) {
+                        origem.socket.write(JSON.stringify({
+                            type: 'MSG_CONT',
+                            from: socket.metadata.username,
+                            text: payload.text,
+                            to: payload.to
+                        }));
                     }
                     break;
             }

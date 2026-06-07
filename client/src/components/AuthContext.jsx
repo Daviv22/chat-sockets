@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
     const [currentContact, setCurrentContact] = useState(null);
     const [contacts, setContacts] = useState([]);
     const [messages, setMessages] = useState([]);
+    const [isGroup, setIsGroup] = useState(true);
 
     const ws = useRef(null);
 
@@ -58,7 +59,8 @@ export const AuthProvider = ({ children }) => {
                 setContacts(prev => [...prev, ...data.contacts]);
                 break;
             case 'MSG_CONT':
-                // Lógica para mensagens privadas
+                console.log("Mensagem recebida:", data);
+                setMessages(prev => [...prev, {from: data.from, text: data.text, to: data.to}]);
                 break;
         }
     };
@@ -67,7 +69,7 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{
             isLoggedIn, username, setUsername, ws,
             groups, setGroups, currentGroup, setCurrentGroup,
-            messages, setMessages, contacts, setCurrentContact, currentContact
+            messages, setMessages, contacts, setCurrentContact, currentContact, isGroup, setIsGroup,
         }}>
             {children}
         </AuthContext.Provider>
