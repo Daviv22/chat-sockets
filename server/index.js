@@ -40,7 +40,7 @@ const server = net.createServer((socket) => {
                     } else {
                         users.set(payload.username, { socket, contacts: [] });
                         socket.metadata.username = payload.username;
-                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Registrado com sucesso!' }));
+                        socket.write(JSON.stringify({ type: 'REG_SUCCESS', text: 'Registrado com sucesso!' }));
                         console.log(`Novo usuário registrado: ${payload.username}`);
                     }
                     break;
@@ -49,7 +49,8 @@ const server = net.createServer((socket) => {
                     if (users.has(payload.username)) {
                         users.set(payload.username, { ...users.get(payload.username), socket });
                         socket.metadata.username = payload.username;
-                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Login realizado!' }));
+                        socket.write(JSON.stringify({ type: 'LOGIN_SUCCESS', text: 'Login realizado!' }));
+
                         console.log(`Usuário logado: ${payload.username}`);
                     } else {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
@@ -62,7 +63,7 @@ const server = net.createServer((socket) => {
                         user.socket = null; // Remove a referência do socket
                         socket.metadata.username = null;
                     }
-                    socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Usuário saiu.'}));
+                    socket.write(JSON.stringify({ type: 'EXIT_SUCCESS', text: 'Usuário saiu.'}));
                     console.log(`Usuário ${payload.username} saiu.`);
                     break;
 
@@ -75,7 +76,7 @@ const server = net.createServer((socket) => {
                         groups.set(payload.group, new Set());
                         groups.get(payload.group).add(socket.metadata.username);
                         // Confirma a criação
-                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Grupo criado!', group: payload.group }));
+                        socket.write(JSON.stringify({ type: 'CRIAR_GRUPO_SUCCESS', text: 'Grupo criado!', group: payload.group }));
                     }
                     break;
 
@@ -197,6 +198,19 @@ const server = net.createServer((socket) => {
                             text: payload.text,
                             to: payload.to
                         }));
+                    }
+                    break;
+
+                case 'LISTAR_CONT':
+                    const usuarioLogado = users.get(socket.metadata.username);
+
+                    if (usuarioLogado) {
+                        socket.write(JSON.stringify({
+                            type: 'SYNC_CONT',
+                            contacts: usuarioLogado.contacts
+                        }));
+                    } else {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado.' }));
                     }
                     break;
             }

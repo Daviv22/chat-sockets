@@ -27,17 +27,23 @@ export const AuthProvider = ({ children }) => {
 
     const handleServerMessage = (data) => {
         switch (data.type) {
-            case 'SUCCESS':
-                // Tratamento de sucesso genérico
-                if (data.text === 'Login realizado!' || data.text === 'Registrado com sucesso!') {
-                    setIsLoggedIn(true);
-                    ws.current.send(JSON.stringify({ type: 'LISTAR_GRUPOS' }));
-                } else if (data.text === 'Usuário saiu.') {
-                    window.location.reload();
-                } else if (data.group) {
-                    // Confirmação de entrada ou criação de grupo
-                    setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);
-                }
+            case 'LOGIN_SUCCESS':
+                setIsLoggedIn(true);
+                ws.current.send(JSON.stringify({ type: 'LISTAR_GRUPOS' }));
+                ws.current.send(JSON.stringify({ type: 'LISTAR_CONT' }));
+                break;
+
+            case 'REG_SUCCESS':
+                setIsLoggedIn(true);
+                break;
+
+            case 'EXIT_SUCCESS':
+                window.location.reload();
+                break;
+
+            case 'CRIAR_GRUPO_SUCCESS':
+                console.log(data.group)
+                setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);
                 break;
 
             case 'ERROR':
@@ -55,13 +61,19 @@ export const AuthProvider = ({ children }) => {
             case 'HISTORICO_MENSAGENS':
                 setMessages(prev => [...prev, ...data.messages]);
                 break;
+
             case 'UPDATE_CONTACTS':
                 setContacts(prev => [...prev, ...data.contacts]);
                 break;
+
             case 'MSG_CONT':
                 console.log("Mensagem recebida:", data);
                 setMessages(prev => [...prev, {from: data.from, text: data.text, to: data.to}]);
                 break;
+
+            case 'SYNC_CONT':
+                setContacts(data.contacts)
+                break
         }
     };
 
