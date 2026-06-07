@@ -39,6 +39,7 @@ const server = net.createServer((socket) => {
                     } else {
                         users.set(payload.username, { socket, contacts: [] });
                         socket.metadata.username = payload.username;
+                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Registrado com sucesso!' }));
                         console.log(`Novo usuário registrado: ${payload.username}`);
                     }
                     break;
@@ -47,6 +48,7 @@ const server = net.createServer((socket) => {
                     if (users.has(payload.username)) {
                         users.set(payload.username, { ...users.get(payload.username), socket });
                         socket.metadata.username = payload.username;
+                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Login realizado!' }));
                         console.log(`Usuário logado: ${payload.username}`);
                     } else {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
@@ -54,19 +56,35 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'SAIR':
-                    users.delete(socket.metadata.username);
-                    socket.end();
+                    const user = users.get(socket.metadata.username);
+                    if (user) {
+                        user.socket = null; // Remove a referência do socket
+                        socket.metadata.username = null;
+                    }
+                    socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Usuário saiu.'}));
+                    console.log(`Usuário ${payload.username} saiu.`);
                     break;
 
                 // Cases relacionados aos grupos
                 case 'CRIAR_GRUPO':
-                    groups.set(payload.group, new Set());
-                    groups.get(payload.group).add(socket.metadata.username);
+                    if (groups.has(payload.group)) {
+                        // Envie um erro para o cliente se o grupo já existe
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Este grupo já existe!' }));
+                    } else {
+                        groups.set(payload.group, new Set());
+                        groups.get(payload.group).add(socket.metadata.username);
+                        // Confirma a criação
+                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Grupo criado!', group: payload.group }));
+                    }
                     break;
 
                 case 'ENTRAR_GRUPO':
-                    if (groups.has(payload.group)) {
+                    if (!groups.has(payload.group)) {
+                        // O grupo não existe no servidor
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Grupo não encontrado!' }));
+                    } else {
                         groups.get(payload.group).add(socket.metadata.username);
+                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Entrou no grupo!', group: payload.group }));
                     }
                     break;
 
@@ -80,11 +98,12 @@ const server = net.createServer((socket) => {
 
                 case 'MSG_GRUPO':
                     const members = groups.get(payload.group);
+                    console.log(`Tentando enviar para o grupo ${payload.group}. Membros:`, members + "MSG: " + payload.text );
                     if (members) {
                         members.forEach(username => {
                             const user = users.get(username);
                             if (user && user.socket.writable) {
-                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, text: payload.text }));
+                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, text: payload.text, group: payload.group }));
                             }
                         });
                     }
@@ -115,7 +134,6 @@ const server = net.createServer((socket) => {
 
     socket.on('end', () => {
         if (socket.metadata.username) users.delete(socket.metadata.username);
-        console.log(`Usuário ${socket.metadata.username} desconectou`);
     });
 });
 
