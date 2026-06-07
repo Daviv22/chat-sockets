@@ -18,7 +18,7 @@ export default function RegAndLogin() {
             {!isLoggedIn ? (
                 <div className="flex gap-2">
                     <input
-                        className="border rounded-lg p-1 text-black"
+                        className="border rounded-lg p-1 bg-white text-black "
                         placeholder="Nome de usuário"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}

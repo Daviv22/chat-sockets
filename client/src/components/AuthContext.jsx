@@ -33,8 +33,6 @@ export const AuthProvider = ({ children }) => {
                     setUsername('');
                     setIsLoggedIn(false);
                     setGroups([]);
-                    setMessages([]);
-                    setGroups([]);
                 } else if (data.group) {
                     // Confirmação de entrada ou criação de grupo
                     setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);

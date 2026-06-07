@@ -46,14 +46,13 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'ENTRAR':
-                    if (!users.has(payload.username)) {
-                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
-                    } else {
-                        const userData = users.get(payload.username);
-                        userData.socket = socket;
-
+                    if (users.has(payload.username)) {
+                        users.set(payload.username, { ...users.get(payload.username), socket });
                         socket.metadata.username = payload.username;
                         socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Login realizado!' }));
+                        console.log(`Usuário logado: ${payload.username}`);
+                    } else {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
                     }
                     break;
 
@@ -110,6 +109,7 @@ const server = net.createServer((socket) => {
 
                     const members = groups.get(payload.group);
                     console.log(`Tentando enviar para o grupo ${payload.group}. Membros:`, members + "MSG: " + payload.text );
+
                     if (members) {
                         members.forEach(username => {
                             const user = users.get(username);
@@ -156,13 +156,6 @@ const server = net.createServer((socket) => {
             }
         } catch (e) {
             console.log("Erro no processamento:", e);
-        }
-    });
-
-    socket.on('close', () => {
-        if (socket.metadata.username) {
-            const user = users.get(socket.metadata.username);
-            if (user) user.socket = null;
         }
     });
 
