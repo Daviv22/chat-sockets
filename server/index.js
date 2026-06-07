@@ -136,8 +136,38 @@ const server = net.createServer((socket) => {
 
                 // Cases relacionados a contatos
                 case 'ADD_CONT':
-                    const u = users.get(socket.metadata.username);
-                    if (u && !u.contacts.includes(payload.contact)) u.contacts.push(payload.contact);
+                    const userA = users.get(socket.metadata.username);
+                    const userB = users.get(payload.contact);
+
+                    // 1. Validar existência de usuário
+                    if (!userB) {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não existe!' }));
+                        return;
+                    }
+
+                    if (userA === userB) {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Você não pode adicionar a si mesmo como um contato!' }));
+                        return
+                    }
+
+                    // 2. Adicionar B em A
+                    if (!userA.contacts.includes(payload.contact)) {
+                        userA.contacts.push(payload.contact);
+                        socket.write(JSON.stringify({ type: 'UPDATE_CONTACTS', contacts: userA.contacts }));
+                    }
+
+                    // 3. Adicionar A em B
+                    if (!userB.contacts.includes(socket.metadata.username)) {
+                        userB.contacts.push(socket.metadata.username);
+
+                        // NOTIFICA O B (usando o socket que está salvo no objeto userB)
+                        if (userB.socket && userB.socket.writable) {
+                            userB.socket.write(JSON.stringify({
+                                type: 'UPDATE_CONTACTS',
+                                contacts: userB.contacts
+                            }));
+                        }
+                    }
                     break;
 
                 case 'REM_CONT':

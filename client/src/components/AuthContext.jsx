@@ -7,6 +7,8 @@ export const AuthProvider = ({ children }) => {
     const [username, setUsername] = useState('');
     const [groups, setGroups] = useState([]);
     const [currentGroup, setCurrentGroup] = useState(null);
+    const [currentContact, setCurrentContact] = useState(null);
+    const [contacts, setContacts] = useState([]);
     const [messages, setMessages] = useState([]);
 
     const ws = useRef(null);
@@ -30,9 +32,7 @@ export const AuthProvider = ({ children }) => {
                     setIsLoggedIn(true);
                     ws.current.send(JSON.stringify({ type: 'LISTAR_GRUPOS' }));
                 } else if (data.text === 'Usuário saiu.') {
-                    setUsername('');
-                    setIsLoggedIn(false);
-                    setGroups([]);
+                    window.location.reload();
                 } else if (data.group) {
                     // Confirmação de entrada ou criação de grupo
                     setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);
@@ -54,7 +54,9 @@ export const AuthProvider = ({ children }) => {
             case 'HISTORICO_MENSAGENS':
                 setMessages(prev => [...prev, ...data.messages]);
                 break;
-
+            case 'UPDATE_CONTACTS':
+                setContacts(prev => [...prev, ...data.contacts]);
+                break;
             case 'MSG_CONT':
                 // Lógica para mensagens privadas
                 break;
@@ -65,7 +67,7 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{
             isLoggedIn, username, setUsername, ws,
             groups, setGroups, currentGroup, setCurrentGroup,
-            messages, setMessages
+            messages, setMessages, contacts, setCurrentContact, currentContact
         }}>
             {children}
         </AuthContext.Provider>
