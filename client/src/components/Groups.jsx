@@ -8,8 +8,6 @@ export default function Groups() {
     const handleCreateOrJoin = (type) => {
         if (!newGroup) return;
 
-        // Apenas enviamos o comando.
-        // A atualização do estado 'groups' virá via AuthContext quando o servidor responder.
         ws.current.send(JSON.stringify({
             type: type,
             payload: { group: newGroup }

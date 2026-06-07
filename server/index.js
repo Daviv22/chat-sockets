@@ -23,7 +23,7 @@ const groups = new Map()
 const mensagensDoGrupo = {};
 
 const server = net.createServer((socket) => {
-    // Inicializamos propriedades únicas no objeto socket desta conexão
+    // Inicializa propriedades únicas no objeto socket desta conexão
     socket.metadata = { username: null };
 
     socket.on('data', (data) => {
@@ -130,8 +130,6 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'CARREGAR_MENSAGENS':
-                    // Se você não salva mensagens em banco, você pode manter um array global
-                    // ou apenas reenviar as mensagens recentes do grupo solicitado
                     const historico = mensagensDoGrupo[payload.group] || [];
                     socket.write(JSON.stringify({ type: 'HISTORICO_MENSAGENS', group: payload.group, messages: historico }));
                     break;
