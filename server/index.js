@@ -21,6 +21,11 @@ const net = require('node:net');
 const users = new Map()
 const groups = new Map()
 const mensagensDoGrupo = {};
+const mensagensPrivadas = {};
+
+const getChatKey = (userA, userB) => {
+    return [userA, userB].sort().join('-');
+};
 
 const server = net.createServer((socket) => {
     // Inicializa propriedades únicas no objeto socket desta conexão
@@ -28,8 +33,7 @@ const server = net.createServer((socket) => {
 
     socket.on('data', (data) => {
         try {
-            const { type, payload} = JSON.parse(data.toString());
-
+            const { type, payload } = JSON.parse(data.toString());
             switch (type) {
 
                 // Cases relacionados ao usuário
@@ -86,7 +90,7 @@ const server = net.createServer((socket) => {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Grupo não encontrado!' }));
                     } else {
                         groups.get(payload.group).add(socket.metadata.username);
-                        socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Entrou no grupo!', group: payload.group }));
+                        socket.write(JSON.stringify({ type: 'ENTRAR_GRUPO_SUCCESS', text: 'Entrou no grupo!', group: payload.group }));
                     }
                     break;
 
@@ -99,13 +103,13 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'MSG_GRUPO':
-                    const { group, text } = payload;
+                    const { group, groupText } = payload;
 
                     if (!mensagensDoGrupo[group]) {
                         mensagensDoGrupo[group] = [];
                     }
 
-                    const novaMensagem = { from: socket.metadata.username, text, group };
+                    const novaMensagem = { from: socket.metadata.username, groupText, group };
                     mensagensDoGrupo[group].push(novaMensagem);
 
                     const members = groups.get(payload.group);
@@ -115,7 +119,7 @@ const server = net.createServer((socket) => {
                         members.forEach(username => {
                             const user = users.get(username);
                             if (user && user.socket.writable) {
-                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, text: payload.text, group: payload.group }));
+                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, groupText: groupText, group: group }));
                             }
                         });
                     }
@@ -178,6 +182,16 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'MSG_CONT':
+                    const { to, DMtext } = payload;
+                    const from = socket.metadata.username;
+                    const chatKey = getChatKey(from, to);
+
+                    if (!mensagensPrivadas[chatKey]) mensagensPrivadas[chatKey] = [];
+
+                    const novaMsg = { from, to, DMtext };
+                    mensagensPrivadas[chatKey].push(novaMsg);
+                    console.log(mensagensPrivadas)
+
                     const destino = users.get(payload.to);
                     const origem = users.get(socket.metadata.username);
 
@@ -186,7 +200,7 @@ const server = net.createServer((socket) => {
                         destino.socket.write(JSON.stringify({
                             type: 'MSG_CONT',
                             from: socket.metadata.username,
-                            text: payload.text
+                            DMtext: DMtext
                         }));
                     }
 
@@ -195,7 +209,7 @@ const server = net.createServer((socket) => {
                         origem.socket.write(JSON.stringify({
                             type: 'MSG_CONT',
                             from: socket.metadata.username,
-                            text: payload.text,
+                            DMtext: DMtext,
                             to: payload.to
                         }));
                     }
@@ -212,6 +226,12 @@ const server = net.createServer((socket) => {
                     } else {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado.' }));
                     }
+                    break;
+
+                case 'CARREGAR_MENSAGENS_CONT':
+                    const key = getChatKey(socket.metadata.username, payload.contact);
+                    const historicoDM = mensagensPrivadas[key] || [].map(msg => ({...msg, to: msg.to || payload.contact}));
+                    socket.write(JSON.stringify({ type: 'HISTORICO_MENSAGENS_CONT', contact: payload.contact, messages: historicoDM }));
                     break;
             }
         } catch (e) {

@@ -46,12 +46,18 @@ export const AuthProvider = ({ children }) => {
                 setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);
                 break;
 
+            case 'ENTRAR_GRUPO_SUCCESS':
+                if (data.group) {
+                    setGroups(prev => prev.includes(data.group) ? prev : [...prev, data.group]);
+                }
+                break;
+
             case 'ERROR':
                 alert(data.text);
                 break;
 
             case 'MSG_GRUPO':
-                setMessages(prev => [...prev, data]);
+                setMessages(prev => [...prev, { from: data.from, groupText: data.groupText, group: data.group }]);
                 break;
 
             case 'SYNC_GROUPS':
@@ -59,7 +65,10 @@ export const AuthProvider = ({ children }) => {
                 break;
 
             case 'HISTORICO_MENSAGENS':
-                setMessages(prev => [...prev, ...data.messages]);
+                setMessages(prev => [
+                    ...prev.filter(m => m.group !== data.group),
+                    ...data.messages
+                ]);
                 break;
 
             case 'UPDATE_CONTACTS':
@@ -68,12 +77,21 @@ export const AuthProvider = ({ children }) => {
 
             case 'MSG_CONT':
                 console.log("Mensagem recebida:", data);
-                setMessages(prev => [...prev, {from: data.from, text: data.text, to: data.to}]);
+                setMessages(prev => [...prev, {from: data.from, DMtext: data.DMtext, to: data.to}]);
                 break;
 
             case 'SYNC_CONT':
                 setContacts(data.contacts)
                 break
+
+            case 'HISTORICO_MENSAGENS_CONT':
+                setMessages(prev => [
+                    ...prev.filter(m =>
+                        !(m.from === data.contact || m.to === data.contact)
+                    ),
+                    ...data.messages
+                ]);
+                break;
         }
     };
 
