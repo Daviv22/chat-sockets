@@ -20,6 +20,7 @@ const net = require('node:net');
 
 const users = new Map()
 const groups = new Map()
+const mensagensDoGrupo = {};
 
 const server = net.createServer((socket) => {
     // Inicializamos propriedades únicas no objeto socket desta conexão
@@ -45,13 +46,14 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'ENTRAR':
-                    if (users.has(payload.username)) {
-                        users.set(payload.username, { ...users.get(payload.username), socket });
+                    if (!users.has(payload.username)) {
+                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
+                    } else {
+                        const userData = users.get(payload.username);
+                        userData.socket = socket;
+
                         socket.metadata.username = payload.username;
                         socket.write(JSON.stringify({ type: 'SUCCESS', text: 'Login realizado!' }));
-                        console.log(`Usuário logado: ${payload.username}`);
-                    } else {
-                        socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
                     }
                     break;
 
@@ -97,6 +99,15 @@ const server = net.createServer((socket) => {
                     break;
 
                 case 'MSG_GRUPO':
+                    const { group, text } = payload;
+
+                    if (!mensagensDoGrupo[group]) {
+                        mensagensDoGrupo[group] = [];
+                    }
+
+                    const novaMensagem = { from: socket.metadata.username, text, group };
+                    mensagensDoGrupo[group].push(novaMensagem);
+
                     const members = groups.get(payload.group);
                     console.log(`Tentando enviar para o grupo ${payload.group}. Membros:`, members + "MSG: " + payload.text );
                     if (members) {
@@ -107,6 +118,22 @@ const server = net.createServer((socket) => {
                             }
                         });
                     }
+                    break;
+
+                case 'LISTAR_GRUPOS':
+                    // Filtra quais grupos contêm o usuário logado
+                    const meusGrupos = Array.from(groups.entries())
+                        .filter(([groupName, members]) => members.has(socket.metadata.username))
+                        .map(([groupName]) => groupName);
+
+                    socket.write(JSON.stringify({ type: 'SYNC_GROUPS', groups: meusGrupos }));
+                    break;
+
+                case 'CARREGAR_MENSAGENS':
+                    // Se você não salva mensagens em banco, você pode manter um array global
+                    // ou apenas reenviar as mensagens recentes do grupo solicitado
+                    const historico = mensagensDoGrupo[payload.group] || [];
+                    socket.write(JSON.stringify({ type: 'HISTORICO_MENSAGENS', group: payload.group, messages: historico }));
                     break;
 
                 // Cases relacionados a contatos
@@ -129,6 +156,13 @@ const server = net.createServer((socket) => {
             }
         } catch (e) {
             console.log("Erro no processamento:", e);
+        }
+    });
+
+    socket.on('close', () => {
+        if (socket.metadata.username) {
+            const user = users.get(socket.metadata.username);
+            if (user) user.socket = null;
         }
     });
 

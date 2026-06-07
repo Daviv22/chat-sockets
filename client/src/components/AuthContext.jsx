@@ -28,9 +28,12 @@ export const AuthProvider = ({ children }) => {
                 // Tratamento de sucesso genérico
                 if (data.text === 'Login realizado!' || data.text === 'Registrado com sucesso!') {
                     setIsLoggedIn(true);
+                    ws.current.send(JSON.stringify({ type: 'LISTAR_GRUPOS' }));
                 } else if (data.text === 'Usuário saiu.') {
                     setUsername('');
                     setIsLoggedIn(false);
+                    setGroups([]);
+                    setMessages([]);
                     setGroups([]);
                 } else if (data.group) {
                     // Confirmação de entrada ou criação de grupo
@@ -44,6 +47,14 @@ export const AuthProvider = ({ children }) => {
 
             case 'MSG_GRUPO':
                 setMessages(prev => [...prev, data]);
+                break;
+
+            case 'SYNC_GROUPS':
+                setGroups(data.groups);
+                break;
+
+            case 'HISTORICO_MENSAGENS':
+                setMessages(prev => [...prev, ...data.messages]);
                 break;
 
             case 'MSG_CONT':

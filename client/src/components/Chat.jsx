@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import {useContext, useEffect, useState} from 'react';
 import { AuthContext } from './AuthContext';
 
 export default function Chat() {
@@ -13,6 +13,15 @@ export default function Chat() {
         }));
         setText('');
     };
+
+    useEffect(() => {
+        if (currentGroup && ws.current) {
+            ws.current.send(JSON.stringify({
+                type: 'CARREGAR_MENSAGENS',
+                payload: { group: currentGroup }
+            }));
+        }
+    }, [currentGroup]);
 
     return (
         <div className="flex flex-col h-full p-4 bg-white">
