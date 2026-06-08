@@ -1,6 +1,5 @@
 import {useContext, useState} from "react";
 import {AuthContext} from "./AuthContext.jsx";
-import { ChevronLeft } from 'lucide-react';
 
 export default function Contacts() {
     const { ws, contacts, setCurrentContact, setIsGroup } = useContext(AuthContext)
