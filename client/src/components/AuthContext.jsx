@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
                 break;
 
             case 'UPDATE_CONTACTS':
-                setContacts(prev => [...prev, ...data.contacts]);
+                setContacts(data.contacts);
                 break;
 
             case 'MSG_CONT':

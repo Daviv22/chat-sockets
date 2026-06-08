@@ -244,7 +244,10 @@ const server = net.createServer((socket) => {
     });
 
     socket.on('end', () => {
-        if (socket.metadata.username) users.delete(socket.metadata.username);
+        if (socket.metadata.username) {
+            const user = users.get(socket.metadata.username);
+            if (user) user.socket = null;
+        }
     });
 });
 

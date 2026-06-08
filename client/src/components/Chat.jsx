@@ -2,7 +2,7 @@ import {useContext, useEffect, useRef, useState} from 'react';
 import { AuthContext } from './AuthContext';
 
 export default function Chat() {
-    const { ws, currentGroup, messages, currentContact, isGroup } = useContext(AuthContext);
+    const { ws, currentGroup, messages, currentContact, isGroup, username } = useContext(AuthContext);
     const [text, setText] = useState('');
 
     const sendMessage = () => {
@@ -50,7 +50,7 @@ export default function Chat() {
                 {messages
                     .filter(m => isGroup ? m.group === currentGroup : (m.from === currentContact || m.to === currentContact))
                     .map((m, i) => (
-                        <p key={i}><strong>{m.from === currentContact ? currentContact : 'Eu'}:</strong> { isGroup ? m.groupText : m.DMtext }</p>
+                        <p key={i}><strong>{ isGroup ? ( m.from === username ? 'Eu' : m.from ) : ( m.from === currentContact ? currentContact : 'Eu')}:</strong> { isGroup ? m.groupText : m.DMtext }</p>
                     ))
                 }
             </div>
