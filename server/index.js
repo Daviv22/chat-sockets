@@ -9,13 +9,11 @@ const net = require('node:net');
  *
  * CRIAR_GRUPO          - Criar um grupo
  * ENTRAR_GRUPO         - Entrar em um grupo
- * SAIR_GRUPO           - Sair de um grupo
  * MSG_GRUPO            - Enviar mensagem em um grupo
  * LISTAR_GRUPOS        - Lista todos os grupos do usuário
  * CARREGAR_MSG_GRUPOS  - Carrega mensagens dos grupos
  *
  * ADD_CONT             - Adicionar contato
- * REM_CONT             - Remover contato
  * MSG_CONT             - Enviar mensagem a um contato
  * LISTAR_CONT          - Lista todos os contatos do usuário
  * CARREGAR_MSG_CONT    - Carrega mensagens dos contatos
@@ -98,14 +96,6 @@ const server = net.createServer((socket) => {
                     }
                     break;
 
-                case 'SAIR_GRUPO':
-                    const grupo = groups.get(payload.group);
-                    if (grupo) {
-                        grupo.delete(socket.metadata.username);
-                        if (grupo.size === 0) groups.delete(payload.group);
-                    }
-                    break;
-
                 case 'MSG_GRUPO':
                     const { group, groupText } = payload;
 
@@ -178,11 +168,6 @@ const server = net.createServer((socket) => {
                             }));
                         }
                     }
-                    break;
-
-                case 'REM_CONT':
-                    const uRem = users.get(socket.metadata.username);
-                    if (uRem) uRem.contacts = uRem.contacts.filter(c => c !== payload.contact);
                     break;
 
                 case 'MSG_CONT':
