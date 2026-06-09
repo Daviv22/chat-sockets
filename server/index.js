@@ -34,6 +34,13 @@ const server = net.createServer((socket) => {
     socket.metadata = { username: null };
 
     socket.on('data', (data) => {
+        const stringData = data.toString().trim();
+
+        // PROTEÇÃO CONTRA REQUISIÇÕES HTTP HTTP/HEAD FANTASMAS:
+        if (stringData.startsWith('HEAD') || stringData.startsWith('GET') || stringData.startsWith('HTTP')) {
+            return; // Aborta e ignora para não quebrar o JSON.parse
+        }
+
         try {
             const { type, payload } = JSON.parse(data.toString());
             switch (type) {

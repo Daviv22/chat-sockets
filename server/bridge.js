@@ -1,9 +1,17 @@
 const WebSocket = require('ws');
 const net = require('node:net');
+const http = require('http');
 
 // Usa a porta do Render ou a 8080 se rodar localmente
 const PORTA_WEB = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port: PORTA_WEB });
+
+const httpServer = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bridge WebSocket Ativa');
+});
+
+const wss = new WebSocket.Server({ server: httpServer });
+
 
 wss.on('connection', (ws) => {
 

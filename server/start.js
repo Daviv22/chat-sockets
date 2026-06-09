@@ -1,4 +1,3 @@
-// start.js
 console.log("Iniciando a aplicação unificada...");
 
 // Importa e executa o servidor TCP principal
