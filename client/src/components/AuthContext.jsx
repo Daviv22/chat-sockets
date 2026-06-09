@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         {/*Link para rodar aplicação com o serviço no Render*/} 
-        ws.current = new WebSocket('wss:sockets-server-h19h.onrender.com');
+        ws.current = new WebSocket('wss://sockets-server-h19h.onrender.com');
         {/*Porta para rodar localmente - habilitar esta linha para testes*/} 
         {/*ws.current = new WebSocket('ws://localhost:8080');*/}
 
