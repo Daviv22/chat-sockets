@@ -83,3 +83,5 @@ Copie a URL local exibida no terminal e cole-a em seu navegador de preferência.
 
 Abra, no mínimo, duas abas do navegador e crie usuários diferentes. Insira ambos em um grupo em comum e teste a troca de mensagens entre eles.
 
+# Link rápido para utilização do projeto
+O projeto pode ser acessado através do link: https://chat-sockets-liard.vercel.app/ 
