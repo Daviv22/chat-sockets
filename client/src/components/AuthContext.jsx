@@ -15,10 +15,10 @@ export const AuthProvider = ({ children }) => {
     const ws = useRef(null);
 
     useEffect(() => {
-        {/*Link para rodar aplicação com o serviço no Render*/} 
+        //Link para rodar aplicação com o serviço no Render
         ws.current = new WebSocket('wss://sockets-server-h19h.onrender.com');
-        {/*Porta para rodar localmente - habilitar esta linha para testes*/} 
-        {/*ws.current = new WebSocket('ws://localhost:8080');*/}
+        //Porta para rodar localmente - habilitar esta linha para testes 
+        ///ws.current = new WebSocket('ws://localhost:8080');
 
         ws.current.onmessage = (event) => {
             const data = JSON.parse(event.data);
