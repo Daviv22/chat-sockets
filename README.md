@@ -112,4 +112,4 @@ Abaixo estão listados os principais tópicos e prompts utilizados durante o des
 
 * **Prompt:** *De que forma posso realizar uma adaptação no código do servidor para que a aplicação reconheça e utilize a porta dinâmica do Render (em produção) ou a porta 8080 quando rodada localmente?*
 
-* Nota: o presente arquivo README foi revisado pelo chat-gpt, que indicou elementos de estrutura padrão para github, além de outros ajustes.
+Nota: o presente arquivo README foi revisado pelo chat-gpt, que indicou elementos de estrutura padrão para github, além de outros ajustes.
