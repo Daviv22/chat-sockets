@@ -85,3 +85,31 @@ Abra, no mínimo, duas abas do navegador e crie usuários diferentes. Insira amb
 
 # Link rápido para utilização do projeto
 O projeto pode ser acessado através do link: https://chat-sockets-liard.vercel.app/ 
+
+## 🤖 Uso de Ferramentas de Inteligência Artificial no Desenvolvimento
+
+Partes deste trabalho foram desenvolvidas com o auxílio e direcionamento de ferramentas de Inteligência Artificial (Gemini e Claude).
+
+Abaixo estão listados os principais tópicos e prompts utilizados durante o desenvolvimento:
+
+### 1. Entendimento de Protocolos (`net` e `ws`)
+
+* **Prompt:** *Explique a aplicação das bibliotecas `net` e `ws`, e como estruturar, organizar e criar protocolos de comunicação customizados entre elas.*
+
+### 2. Arquitetura da Bridge (Ponte TCP ↔ WebSocket)
+
+* **Prompt:** *Como fazer a conexão de um servidor TCP puro ao navegador utilizando uma bridge em JavaScript intermediária?*
+
+### 3. Processamento de Dados na Bridge
+
+* **Prompt:** *Explique como processar de forma segura os dados recebidos da bridge, evitando quebras no parseamento de mensagens.*
+
+### 4. Gerenciamento de Estado no Frontend (React)
+
+* **Prompt:** *Explique o funcionamento do `useEffect` e do `Context API` no React voltados para manter uma conexão estável e global com WebSockets.*
+
+### 5. Adaptação do Servidor para Ambientes Híbridos (Render e Localhost)
+
+* **Prompt:** *De que forma posso realizar uma adaptação no código do servidor para que a aplicação reconheça e utilize a porta dinâmica do Render (em produção) ou a porta 8080 quando rodada localmente?*
+
+* Nota: o presente arquivo README foi revisado pelo chat-gpt, que indicou elementos de estrutura padrão para github, além de outros ajustes.
