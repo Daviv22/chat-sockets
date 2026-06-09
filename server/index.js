@@ -20,8 +20,8 @@ const net = require('node:net');
  *
  */
 
-const users = new Map()
-const groups = new Map()
+const users = new Map();
+const groups = new Map();
 const mensagensDoGrupo = {};
 const mensagensPrivadas = {};
 
@@ -36,19 +36,19 @@ const server = net.createServer((socket) => {
     socket.on('data', (data) => {
         const stringData = data.toString().trim();
 
-        // PROTEÇÃO CONTRA REQUISIÇÕES HTTP HTTP/HEAD FANTASMAS:
+        // PROTEÇÃO CONTRA REQUISIÇÕES HTTP/HEAD FANTASMAS DO RENDER:
         if (stringData.startsWith('HEAD') || stringData.startsWith('GET') || stringData.startsWith('HTTP')) {
             return; // Aborta e ignora para não quebrar o JSON.parse
         }
 
         try {
-            const { type, payload } = JSON.parse(data.toString());
+            // CORREÇÃO: Usamos a variável stringData já tratada e limpa
+            const { type, payload } = JSON.parse(stringData);
             switch (type) {
 
                 // Cases relacionados ao usuário
                 case 'REGISTRAR':
                     if (users.has(payload.username)) {
-                        // Envia mensagem de erro ao cliente
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário já existe!' }));
                     } else {
                         users.set(payload.username, { socket, contacts: [] });
@@ -63,7 +63,6 @@ const server = net.createServer((socket) => {
                         users.set(payload.username, { ...users.get(payload.username), socket });
                         socket.metadata.username = payload.username;
                         socket.write(JSON.stringify({ type: 'LOGIN_SUCCESS', text: 'Login realizado!' }));
-
                         console.log(`Usuário logado: ${payload.username}`);
                     } else {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não encontrado!' }));
@@ -73,7 +72,7 @@ const server = net.createServer((socket) => {
                 case 'SAIR':
                     const user = users.get(socket.metadata.username);
                     if (user) {
-                        user.socket = null; // Remove a referência do socket
+                        user.socket = null; 
                         socket.metadata.username = null;
                     }
                     socket.write(JSON.stringify({ type: 'EXIT_SUCCESS', text: 'Usuário saiu.'}));
@@ -83,19 +82,16 @@ const server = net.createServer((socket) => {
                 // Cases relacionados aos grupos
                 case 'CRIAR_GRUPO':
                     if (groups.has(payload.group)) {
-                        // Envie um erro para o cliente se o grupo já existe
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Este grupo já existe!' }));
                     } else {
                         groups.set(payload.group, new Set());
                         groups.get(payload.group).add(socket.metadata.username);
-                        // Confirma a criação
                         socket.write(JSON.stringify({ type: 'CRIAR_GRUPO_SUCCESS', text: 'Grupo criado!', group: payload.group }));
                     }
                     break;
 
                 case 'ENTRAR_GRUPO':
                     if (!groups.has(payload.group)) {
-                        // O grupo não existe no servidor
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Grupo não encontrado!' }));
                     } else {
                         groups.get(payload.group).add(socket.metadata.username);
@@ -114,22 +110,21 @@ const server = net.createServer((socket) => {
                     mensagensDoGrupo[group].push(novaMensagem);
 
                     const members = groups.get(payload.group);
-                    console.log(`Tentando enviar para o grupo ${payload.group}. Membros:`, members + "MSG: " + payload.text );
+                    console.log(`Tentando enviar para o grupo ${payload.group}. Membros:`, members + " MSG: " + groupText);
 
                     if (members) {
                         members.forEach(username => {
-                            const user = users.get(username);
-                            if (user && user.socket.writable) {
-                                user.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, groupText: groupText, group: group }));
+                            const targetUser = users.get(username);
+                            if (targetUser && targetUser.socket && targetUser.socket.writable) {
+                                targetUser.socket.write(JSON.stringify({ type: 'MSG_GRUPO', from: socket.metadata.username, groupText: groupText, group: group }));
                             }
                         });
                     }
                     break;
 
                 case 'LISTAR_GRUPOS':
-                    // Filtra quais grupos contêm o usuário logado
                     const meusGrupos = Array.from(groups.entries())
-                        .filter(([groupName, members]) => members.has(socket.metadata.username))
+                        .filter(([_, members]) => members.has(socket.metadata.username))
                         .map(([groupName]) => groupName);
 
                     socket.write(JSON.stringify({ type: 'SYNC_GROUPS', groups: meusGrupos }));
@@ -145,29 +140,24 @@ const server = net.createServer((socket) => {
                     const userA = users.get(socket.metadata.username);
                     const userB = users.get(payload.contact);
 
-                    // Validar existência de usuário
                     if (!userB) {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Usuário não existe!' }));
                         return;
                     }
 
-                    // Impede usuário adicionar a si mesmo
                     if (userA === userB) {
                         socket.write(JSON.stringify({ type: 'ERROR', text: 'Você não pode adicionar a si mesmo como um contato!' }));
-                        return
+                        return;
                     }
 
-                    // Adicionar B em A
                     if (!userA.contacts.includes(payload.contact)) {
                         userA.contacts.push(payload.contact);
                         socket.write(JSON.stringify({ type: 'UPDATE_CONTACTS', contacts: userA.contacts }));
                     }
 
-                    // Adicionar A em B
                     if (!userB.contacts.includes(socket.metadata.username)) {
                         userB.contacts.push(socket.metadata.username);
 
-                        // NOTIFICA O B (usando o socket que está salvo no objeto userB)
                         if (userB.socket && userB.socket.writable) {
                             userB.socket.write(JSON.stringify({
                                 type: 'UPDATE_CONTACTS',
@@ -186,12 +176,10 @@ const server = net.createServer((socket) => {
 
                     const novaMsg = { from, to, DMtext };
                     mensagensPrivadas[chatKey].push(novaMsg);
-                    console.log(mensagensPrivadas)
 
                     const destino = users.get(payload.to);
                     const origem = users.get(socket.metadata.username);
 
-                    // Envia para o destinatário
                     if (destino && destino.socket && destino.socket.writable) {
                         destino.socket.write(JSON.stringify({
                             type: 'MSG_CONT',
@@ -200,7 +188,6 @@ const server = net.createServer((socket) => {
                         }));
                     }
 
-                    // Envia de volta para o remetente (confirmação)
                     if (origem && origem.socket && origem.socket.writable) {
                         origem.socket.write(JSON.stringify({
                             type: 'MSG_CONT',
@@ -226,12 +213,12 @@ const server = net.createServer((socket) => {
 
                 case 'CARREGAR_MENSAGENS_CONT':
                     const key = getChatKey(socket.metadata.username, payload.contact);
-                    const historicoDM = mensagensPrivadas[key] || [].map(msg => ({...msg, to: msg.to || payload.contact}));
+                    const historicoDM = mensagensPrivadas[key] || [];
                     socket.write(JSON.stringify({ type: 'HISTORICO_MENSAGENS_CONT', contact: payload.contact, messages: historicoDM }));
                     break;
             }
         } catch (e) {
-            console.log("Erro no processamento:", e);
+            console.log("Erro no processamento de JSON:", e.message);
         }
     });
 
@@ -241,6 +228,13 @@ const server = net.createServer((socket) => {
             if (user) user.socket = null;
         }
     });
+
+    socket.on('error', (err) => {
+        console.error("Erro no socket TCP interno:", err.message);
+    });
 });
 
-server.listen(4000, '127.0.0.1');
+// Vincula o servidor TCP na porta interna 4000
+server.listen(4000, '127.0.0.1', () => {
+    console.log("Servidor TCP interno rodando na porta 4000");
+});
