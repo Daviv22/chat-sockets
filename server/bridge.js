@@ -1,14 +1,16 @@
 const WebSocket = require('ws');
 const net = require('node:net');
 
-const wss = new WebSocket.Server({ port: 8080 });
+// Usa a porta do Render ou a 8080 se rodar localmente
+const PORTA_WEB = process.env.PORT || 8080;
+const wss = new WebSocket.Server({ port: PORTA_WEB });
 
 wss.on('connection', (ws) => {
 
     // Cada cliente WebSocket ganha sua própria conexão TCP dedicada.
-    // Isso garante que o servidor TCP trate cada aba/página como um
-    // usuário independente, com seu próprio socket.metadata.
     const tcpClient = new net.Socket();
+    
+    // Como o index.js vai rodar na mesma máquina pelo start.js, mantém o 127.0.0.1:4000
     tcpClient.connect(4000, '127.0.0.1');
 
     // Quando o React enviar algo, a bridge repassa para o servidor TCP
@@ -34,9 +36,9 @@ wss.on('connection', (ws) => {
     });
 
     tcpClient.on('error', (err) => {
-        console.error('Erro TCP:', err.message);
+        console.error('Erro TCP interno da bridge:', err.message);
         ws.close();
     });
 });
 
-console.log('Bridge WebSocket rodando na porta 8080');
+console.log(`WebSocket rodando na porta ${PORTA_WEB}`);
